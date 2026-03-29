@@ -174,32 +174,62 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
             false
         };
 
-        let rust_method_name = godot_method_name.trim_start_matches("_");
+        let mut rust_method_name = godot_method_name.trim_start_matches("_");
+
+        if rust_method_name == "typeof" {
+            rust_method_name = "typeof_";
+        }
 
         result.push_str("[");
         result.push_str(&rust_method_name);
         result.push_str("][`");
-        if is_global {
-            result.push_str("crate::global::");
+
+        let class_containing_method_name = class_containing_method.name().rust_ty.to_string();
+
+        // TODO: temporary fix for special methods, find a better way of hadling these
+        if rust_method_name == "is_instance_id_valid" {
+            result.push_str("crate::obj::InstanceId::lookup_validity`]");
+        } else if let Some(mapped_gd_method) =
+            map_gd_method_name(&class_containing_method_name, &rust_method_name)
+        {
+            result.push_str("crate::obj::Gd::");
+            result.push_str(mapped_gd_method);
+            result.push_str("`]");
         } else {
-            let name = if is_virtual {
-                class_containing_method.name().virtual_trait_name()
+            if is_global {
+                result.push_str("crate::global");
             } else {
-                class_containing_method.name().rust_ty.to_string()
-            };
-            if is_builtin {
-                result.push_str("crate::builtin::");
-            } else {
-                result.push_str("crate::classes::");
+                if is_builtin {
+                    result.push_str("crate::builtin::");
+                } else {
+                    result.push_str("crate::classes::");
+                }
+
+                let name = if is_virtual {
+                    class_containing_method.name().virtual_trait_name()
+                } else {
+                    class_containing_method_name
+                };
+                result.push_str(&name);
             }
-            result.push_str(&name);
             result.push_str("::");
+            result.push_str(&rust_method_name);
+            result.push_str("`]");
         }
-        result.push_str(&rust_method_name);
-        result.push_str("`]");
+
         previous = end;
     }
     result.push_str(&doc[previous..]);
 
     result
+}
+
+fn map_gd_method_name<'a, 'b>(class_name: &'a str, method_name: &'a str) -> Option<&'b str> {
+    match (class_name, method_name) {
+        ("Object", "free") => Some("free"),
+        ("Object", "get_instance_id") => Some("instance_id"),
+        (_, "instance_from_id") => Some("from_instance_id"),
+        (_, "is_instance_valid") => Some("is_instance_valid"),
+        _ => None,
+    }
 }
