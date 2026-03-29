@@ -67,6 +67,10 @@ impl<'a> ApiView<'a> {
             .get(ty)
             .unwrap_or_else(|| panic!("specified type `{}` is not an engine class", ty.godot_ty))
     }
+
+    pub fn try_get_engine_class(&self, ty: &TyName) -> Option<&'a Class> {
+        self.class_by_ty.get(ty).cloned()
+    }
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------------------------
