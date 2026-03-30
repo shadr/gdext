@@ -106,16 +106,11 @@ fn replace_type_links(doc: &str, ctx: &Context) -> String {
         if IGNORED_NAMES.contains(&class_name) {
             result.push_str(&class_name);
         } else {
-            let is_builtin = ctx.is_builtin(&class_name);
-            let class_name = crate::conv::to_pascal_case(class_name);
             result.push_str("[");
             result.push_str(&class_name);
-            if is_builtin {
-                result.push_str("][crate::builtin::");
-            } else {
-                result.push_str("][crate::classes::");
-            }
-            result.push_str(&class_name);
+            result.push_str("][");
+            let path = get_class_rust_path(&class_name, ctx);
+            result.push_str(&path);
             result.push_str("]");
         }
         previous = end;
@@ -125,12 +120,12 @@ fn replace_type_links(doc: &str, ctx: &Context) -> String {
 }
 
 fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
-    // replace method links
     let mut result = String::new();
-    let re = regex::RegexBuilder::new(r#"\[method (([a-zA-Z0-9@]+?)\.)?([a-zA-Z0-9_]+?)\]"#)
+    let re = regex::RegexBuilder::new(r#"\[method ((([a-zA-Z0-9@]+?)\.)?([a-zA-Z0-9_]+?))\]"#)
         .build()
         .unwrap();
     let mut previous = 0;
+
     for captures in re.captures_iter(&doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
@@ -139,82 +134,18 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
             continue;
         }
         result.push_str(&doc[previous..start]);
+        let method_path = captures.get(1).unwrap().as_str();
 
-        let mut class_containing_method = class;
-
-        let mut is_builtin = false;
-        let mut is_global = false;
-        if let Some(capture) = captures.get(2) {
-            let name = capture.as_str();
-            is_builtin = ctx.is_builtin(&name);
-            if name == "@GDScript" {
-                // TODO: link to a gdscript builtin function (load, preload, char, ord etc.)
-                result.push_str(whole_match.as_str());
-                previous = end;
-                continue;
-            }
-            is_global = name == "@GlobalScope";
-            if !is_global {
-                if let Some(engine_class) = view.try_get_engine_class(&TyName::from_godot(name)) {
-                    class_containing_method = engine_class;
-                }
-            }
-        }
-
-        let godot_method_name = captures.get(3).unwrap();
-        let godot_method_name = godot_method_name.as_str();
-
-        let is_virtual = if let Some(method) = class_containing_method
-            .methods
-            .iter()
-            .find(|method| method.godot_name() == godot_method_name)
+        if let Some((method_path, method_name)) =
+            convert_to_method_path(&method_path, class, ctx, view)
         {
-            method.is_virtual()
-        } else {
-            false
-        };
-
-        let mut rust_method_name = godot_method_name.trim_start_matches("_");
-
-        if rust_method_name == "typeof" {
-            rust_method_name = "typeof_";
-        }
-
-        result.push_str("[");
-        result.push_str(&rust_method_name);
-        result.push_str("][`");
-
-        let class_containing_method_name = class_containing_method.name().rust_ty.to_string();
-
-        // TODO: temporary fix for special methods, find a better way of hadling these
-        if rust_method_name == "is_instance_id_valid" {
-            result.push_str("crate::obj::InstanceId::lookup_validity`]");
-        } else if let Some(mapped_gd_method) =
-            map_gd_method_name(&class_containing_method_name, &rust_method_name)
-        {
-            result.push_str("crate::obj::Gd::");
-            result.push_str(mapped_gd_method);
+            result.push_str("[");
+            result.push_str(&method_name);
+            result.push_str("][`");
+            result.push_str(&method_path);
             result.push_str("`]");
         } else {
-            if is_global {
-                result.push_str("crate::global");
-            } else {
-                if is_builtin {
-                    result.push_str("crate::builtin::");
-                } else {
-                    result.push_str("crate::classes::");
-                }
-
-                let name = if is_virtual {
-                    class_containing_method.name().virtual_trait_name()
-                } else {
-                    class_containing_method_name
-                };
-                result.push_str(&name);
-            }
-            result.push_str("::");
-            result.push_str(&rust_method_name);
-            result.push_str("`]");
+            result.push_str(whole_match.as_str());
         }
 
         previous = end;
@@ -224,12 +155,108 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
     result
 }
 
-fn map_gd_method_name<'a, 'b>(class_name: &'a str, method_name: &'a str) -> Option<&'b str> {
-    match (class_name, method_name) {
-        ("Object", "free") => Some("free"),
-        ("Object", "get_instance_id") => Some("instance_id"),
-        (_, "instance_from_id") => Some("from_instance_id"),
-        (_, "is_instance_valid") => Some("is_instance_valid"),
-        _ => None,
+fn convert_to_method_path<'a>(
+    method: &'a str,
+    class: &Class,
+    ctx: &Context,
+    view: &ApiView,
+) -> Option<(String, &'a str)> {
+    let godot_class_name;
+    let mut godot_method_name;
+    if method.contains(".") {
+        let mut splitted = method.split('.');
+        godot_class_name = splitted.next().unwrap();
+        godot_method_name = splitted.next().unwrap();
+    } else {
+        godot_class_name = class.name().godot_ty.as_str();
+        godot_method_name = method;
+    }
+
+    if godot_method_name == "typeof" {
+        godot_method_name = "typeof_";
+    }
+
+    match (godot_class_name, godot_method_name) {
+        ("Object", "free") => {
+            return Some((format!("crate::obj::Gd::free"), "free"));
+        }
+        ("Object", "get_instance_id") => {
+            return Some((format!("crate::obj::Gd::instance_id"), "instance_id"));
+        }
+        ("@GlobalScope", "instance_from_id") => {
+            return Some((
+                format!("crate::obj::Gd::from_instance_id"),
+                "from_instance_id",
+            ));
+        }
+        ("@GlobalScope", "is_instance_valid") => {
+            return Some((
+                format!("crate::obj::Gd::is_instance_valid"),
+                "is_instance_valid",
+            ));
+        }
+        ("@GDScript", "load") => {
+            return Some((format!("crate::tools::load"), "load"));
+        }
+        ("@GDScript", "save") => {
+            return Some((format!("crate::tools::save"), "save"));
+        }
+        ("String", _) => {
+            return Some((
+                format!("crate::builtin::GString::{}", godot_method_name),
+                godot_method_name,
+            ));
+        }
+        ("@GlobalScope", _) => {
+            return Some((
+                format!("crate::global::{}", godot_method_name),
+                godot_method_name,
+            ));
+        }
+        ("@GDScript", _) => {
+            return None;
+        }
+        _ => (),
+    }
+
+    if let Some(class) = view.try_get_engine_class(&TyName::from_godot(godot_class_name)) {
+        if let Some(method) = class
+            .methods
+            .iter()
+            .find(|method| method.godot_name() == godot_method_name)
+        {
+            let godot_method_name = godot_method_name.trim_start_matches("_");
+            if method.is_virtual() {
+                return Some((
+                    format!(
+                        "crate::classes::{}::{}",
+                        class.name().virtual_trait_name(),
+                        godot_method_name
+                    ),
+                    godot_method_name,
+                ));
+            }
+        }
+    }
+
+    let godot_method_name = godot_method_name.trim_start_matches("_");
+    let rust_class_path = get_class_rust_path(&godot_class_name, ctx);
+    Some((
+        format!("{}::{}", rust_class_path, godot_method_name),
+        godot_method_name,
+    ))
+}
+
+fn get_class_rust_path(godot_class_name: &str, ctx: &Context) -> String {
+    if godot_class_name == "String" {
+        return format!("crate::builtin::GString");
+    }
+
+    let is_builtin = ctx.is_builtin(&godot_class_name);
+    let rust_class_name = crate::conv::to_pascal_case(godot_class_name);
+    if is_builtin {
+        format!("crate::builtin::{}", rust_class_name)
+    } else {
+        format!("crate::classes::{}", rust_class_name)
     }
 }
