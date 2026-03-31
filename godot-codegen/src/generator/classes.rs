@@ -112,7 +112,7 @@ fn make_class(class: &Class, ctx: &mut Context, view: &ApiView) -> GeneratedClas
 
     if !class.description.is_empty() {
         extended_class_doc.push_str("\n# Godot imported docs\n");
-        let imported_doc = super::import_docs::import_class_docs(&class, ctx, view);
+        let imported_doc = super::import_docs::import_class_docs(class, ctx, view);
         extended_class_doc.push_str(&imported_doc);
     }
 
