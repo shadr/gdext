@@ -230,14 +230,19 @@ fn convert_to_method_path<'a>(
                 return None;
             }
             if method.is_virtual() {
-                return Some((
-                    format!(
-                        "crate::classes::{}::{}",
-                        class.name().virtual_trait_name(),
-                        godot_method_name
-                    ),
-                    godot_method_name,
-                ));
+                if class.is_final {
+                    // Final classes doesn't have associated trait with virtual methods
+                    return None;
+                } else {
+                    return Some((
+                        format!(
+                            "crate::classes::{}::{}",
+                            class.name().virtual_trait_name(),
+                            godot_method_name
+                        ),
+                        godot_method_name,
+                    ));
+                }
             }
         }
     }
