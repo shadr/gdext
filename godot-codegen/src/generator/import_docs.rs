@@ -226,6 +226,9 @@ fn convert_to_method_path<'a>(
             .find(|method| method.godot_name() == godot_method_name)
         {
             let godot_method_name = godot_method_name.trim_start_matches("_");
+            if method.is_private() {
+                return None;
+            }
             if method.is_virtual() {
                 return Some((
                     format!(
