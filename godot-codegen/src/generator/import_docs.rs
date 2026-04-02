@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use crate::{
     context::Context,
     models::domain::{ApiView, Class, ClassLike, Function, TyName},
@@ -104,14 +106,10 @@ fn replace_type_links(doc: &str, ctx: &Context) -> String {
         result.push_str(&doc[previous..start]);
         // if we encounter an ignored name then we insert it without any links or formatting
         if IGNORED_NAMES.contains(&class_name) {
-            result.push_str(class_name);
+            write!(result, "{class_name}").unwrap();
         } else {
-            result.push('[');
-            result.push_str(class_name);
-            result.push_str("][");
             let path = get_class_rust_path(class_name, ctx);
-            result.push_str(&path);
-            result.push(']');
+            write!(result, "[{class_name}][{path}]").unwrap();
         }
         previous = end;
     }
@@ -139,13 +137,9 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
         if let Some((method_path, method_name)) =
             convert_to_method_path(method_path, class, ctx, view)
         {
-            result.push('[');
-            result.push_str(method_name);
-            result.push_str("][`");
-            result.push_str(&method_path);
-            result.push_str("`]");
+            write!(result, "[{method_name}][`{method_path}`]").unwrap();
         } else {
-            result.push_str(whole_match.as_str());
+            write!(result, "{}", whole_match.as_str()).unwrap();
         }
 
         previous = end;
