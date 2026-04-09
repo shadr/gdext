@@ -21,7 +21,7 @@ pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String
 }
 
 fn replace_simple_tags(str: &str) -> String {
-    // replace \n with \n\n everywhere except codeblock tags
+    // Replace \n with \n\n everywhere except codeblock tags.
     let re = regex::RegexBuilder::new(
         r#"(\[codeblocks?( lang=.*?)?\](?:.|\n)*?\[\/codeblocks?\])|(\n)"#,
     )
@@ -29,61 +29,61 @@ fn replace_simple_tags(str: &str) -> String {
     .unwrap();
     let result = re.replace_all(str, "$1$3$3");
 
-    // replace bold tags
+    // Replace bold tags.
     let re = regex::RegexBuilder::new(r#"\[b\](.*?)\[\/b\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "**$1**");
 
-    // replace italic tags
+    // Replace italic tags.
     let re = regex::RegexBuilder::new(r#"\[i\](.*?)\[\/i\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "*$1*");
 
-    // replace code tags
+    // Replace code tags.
     let re = regex::RegexBuilder::new(r#"\[code( skip-lint)?\](.*?)\[\/code\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "`$2`");
 
-    // replace kbd tags
+    // Replace kbd tags.
     let re = regex::RegexBuilder::new(r#"\[kbd\](.*?)\[\/kbd\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "`$1`");
 
-    // replace url tags
+    // Replace url tags.
     let re = regex::RegexBuilder::new(r#"\[url=(.*?)\](.*?)\[\/url\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "[$2]($1)");
 
-    // replace codeblocks tags
+    // Replace codeblocks tags.
     let re = regex::RegexBuilder::new(r#"\[codeblocks\]([\s\S]*?)\[\/codeblocks\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "$1");
 
-    // replace codeblock tags
+    // Replace codeblock tags.
     let re = regex::RegexBuilder::new(r#"\[codeblock\]([\s\S]*?)\[\/codeblock\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "```gdscript$1```");
 
-    // replace codeblock lang tags
+    // Replace codeblock lang tags.
     let re = regex::RegexBuilder::new(r#"\[codeblock lang=(.*?)\]([\s\S]*?)\[\/codeblock\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "```$1$2```");
 
-    // replace gdscript tags
+    // Replace gdscript tags.
     let re = regex::RegexBuilder::new(r#"\[gdscript\]([\s\S]*?)\[\/gdscript\]"#)
         .build()
         .unwrap();
     let result = re.replace_all(&result, "```gdscript$1```");
 
-    // replace csharp tags
+    // Replace csharp tags.
     let re = regex::RegexBuilder::new(r#"\[csharp\]([\s\S]*?)\[\/csharp\]"#)
         .build()
         .unwrap();
@@ -109,13 +109,15 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
         let class_name = captures.get(1).unwrap();
         let class_name = class_name.as_str();
         result.push_str(&doc[previous..start]);
-        // if we encounter an ignored name then we insert it without any links or formatting
+
+        // If we encounter an ignored name, then we insert it without any links or formatting.
         if IGNORED_NAMES.contains(&class_name) {
             write!(result, "{class_name}").unwrap();
         } else {
             let path = get_class_rust_path(class_name, ctx);
             let current_class_name = class.name().rust_ty.to_string();
-            // if a link points to the current class then do not create a link tag in markdown to reduce noise
+
+            // If a link points to the current class, then do not create a link tag in Markdown to reduce noise.
             if current_class_name == class_name {
                 write!(result, "`{class_name}`").unwrap();
             } else {
@@ -236,7 +238,7 @@ fn convert_to_method_path<'a>(
         }
         if method.is_virtual() {
             if class.is_final {
-                // Final classes doesn't have associated trait with virtual methods
+                // Final classes don't have an associated trait with virtual methods.
                 return None;
             } else {
                 return Some((
