@@ -227,6 +227,18 @@ fn matches_hardcoded_method(
             *ret = Some("crate::obj::Gd::instance_id".to_string());
             true
         }
+        ("Object", "notification") => {
+            *ret = Some("crate::classes::Object::notify".to_string());
+            true
+        }
+        ("Object", "_notification") => {
+            *ret = Some("crate::classes::IObject::on_notification".to_string());
+            true
+        }
+        ("GDScript", "new") => {
+            *ret = Some("crate::obj::NewGd::new_gd".to_string());
+            true
+        }
         ("@GlobalScope", "instance_from_id") => {
             *ret = Some("crate::obj::Gd::from_instance_id".to_string());
             true
