@@ -139,7 +139,7 @@ fn is_godot_debug_build(godot_bin: &Path) -> bool {
     cmd.arg("--help");
 
     let haystack = execute(cmd, "Godot CLI help to check debug/release");
-    let needle = b"--dump-extension-api-with-docs";
+    let needle = b"--dump-extension-api";
 
     haystack
         .stdout
@@ -155,6 +155,8 @@ fn dump_extension_api(godot_bin: &Path, out_file: &Path) {
     let mut cmd = Command::new(godot_bin);
     cmd.current_dir(cwd)
         .arg("--headless")
+        // Available since Godot 4.2
+        // See: https://github.com/godotengine/godot/pull/82331
         .arg("--dump-extension-api-with-docs");
 
     execute(cmd, "dump Godot JSON file");
