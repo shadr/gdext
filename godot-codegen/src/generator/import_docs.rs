@@ -147,9 +147,10 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
         result.push_str(&doc[previous..start]);
         let method_path = captures.get(1).unwrap().as_str();
 
-        if let Some((method_path, method_name)) =
-            convert_to_method_path(method_path, class, ctx, view)
-        {
+        if let Some(method_path) = convert_to_method_path(method_path, class, ctx, view) {
+            let (_, method_name) = method_path
+                .rsplit_once("::")
+                .expect("rsplit_once should return a method name");
             write!(result, "[{method_name}][`{method_path}`]").unwrap();
         } else {
             write!(result, "{}", whole_match.as_str()).unwrap();
@@ -167,7 +168,7 @@ fn convert_to_method_path<'a>(
     class: &Class,
     ctx: &Context,
     view: &ApiView,
-) -> Option<(String, &'a str)> {
+) -> Option<String> {
     let (godot_class, mut godot_method) =
         if let Some((class_name, method_name)) = class_method.split_once('.') {
             (class_name, method_name)
@@ -179,44 +180,9 @@ fn convert_to_method_path<'a>(
         godot_method = "typeof_";
     }
 
-    match (godot_class, godot_method) {
-        ("Object", "free") => {
-            return Some(("crate::obj::Gd::free".to_string(), "free"));
-        }
-        ("Object", "get_instance_id") => {
-            return Some(("crate::obj::Gd::instance_id".to_string(), "instance_id"));
-        }
-        ("@GlobalScope", "instance_from_id") => {
-            return Some((
-                "crate::obj::Gd::from_instance_id".to_string(),
-                "from_instance_id",
-            ));
-        }
-        ("@GlobalScope", "is_instance_valid") => {
-            return Some((
-                "crate::obj::Gd::is_instance_valid".to_string(),
-                "is_instance_valid",
-            ));
-        }
-        ("@GDScript", "load") => {
-            return Some(("crate::tools::load".to_string(), "load"));
-        }
-        ("@GDScript", "save") => {
-            return Some(("crate::tools::save".to_string(), "save"));
-        }
-        ("String", _) => {
-            return Some((
-                format!("crate::builtin::GString::{}", godot_method),
-                godot_method,
-            ));
-        }
-        ("@GlobalScope", _) => {
-            return Some((format!("crate::global::{}", godot_method), godot_method));
-        }
-        ("@GDScript", _) => {
-            return None;
-        }
-        _ => (),
+    let mut ret = None;
+    if matches_hardcoded_method(godot_class, godot_method, &mut ret) {
+        return ret;
     }
 
     if let Some(class) = view.try_get_engine_class(&TyName::from_godot(godot_class))
@@ -234,13 +200,10 @@ fn convert_to_method_path<'a>(
                 // Final classes don't have an associated trait with virtual methods.
                 return None;
             } else {
-                return Some((
-                    format!(
-                        "crate::classes::{}::{}",
-                        class.name().virtual_trait_name(),
-                        godot_method_name
-                    ),
-                    godot_method_name,
+                return Some(format!(
+                    "crate::classes::{}::{}",
+                    class.name().virtual_trait_name(),
+                    godot_method_name
                 ));
             }
         }
@@ -248,10 +211,53 @@ fn convert_to_method_path<'a>(
 
     let godot_method_name = godot_method.trim_start_matches("_");
     let rust_class_path = get_class_rust_path(godot_class, ctx);
-    Some((
-        format!("{}::{}", rust_class_path, godot_method_name),
-        godot_method_name,
-    ))
+    Some(format!("{}::{}", rust_class_path, godot_method_name))
+}
+
+fn matches_hardcoded_method(
+    godot_class: &str,
+    godot_method: &str,
+    ret: &mut Option<String>,
+) -> bool {
+    match (godot_class, godot_method) {
+        ("Object", "free") => {
+            *ret = Some("crate::obj::Gd::free".to_string());
+            true
+        }
+        ("Object", "get_instance_id") => {
+            *ret = Some("crate::obj::Gd::instance_id".to_string());
+            true
+        }
+        ("@GlobalScope", "instance_from_id") => {
+            *ret = Some("crate::obj::Gd::from_instance_id".to_string());
+            true
+        }
+        ("@GlobalScope", "is_instance_valid") => {
+            *ret = Some("crate::obj::Gd::is_instance_valid".to_string());
+            true
+        }
+        ("@GDScript", "load") => {
+            *ret = Some("crate::tools::load".to_string());
+            true
+        }
+        ("@GDScript", "save") => {
+            *ret = Some("crate::tools::save".to_string());
+            true
+        }
+        ("String", _) => {
+            *ret = Some(format!("crate::builtin::GString::{}", godot_method));
+            true
+        }
+        ("@GlobalScope", _) => {
+            *ret = Some(format!("crate::global::{}", godot_method));
+            true
+        }
+        ("@GDScript", _) => {
+            *ret = None;
+            true
+        }
+        _ => false,
+    }
 }
 
 fn get_class_rust_path(godot_class_name: &str, ctx: &Context) -> String {
