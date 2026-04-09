@@ -164,7 +164,7 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
                 .expect("rsplit_once should return a method name");
             write!(result, "[{method_name}][`{method_path}`]").unwrap();
         } else {
-            write!(result, "{}", whole_match.as_str()).unwrap();
+            write!(result, "\\{}", whole_match.as_str()).unwrap();
         }
 
         previous = end;
