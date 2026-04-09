@@ -163,27 +163,23 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
 }
 
 fn convert_to_method_path<'a>(
-    method: &'a str,
+    class_method: &'a str,
     class: &Class,
     ctx: &Context,
     view: &ApiView,
 ) -> Option<(String, &'a str)> {
-    let godot_class_name;
-    let mut godot_method_name;
-    if method.contains(".") {
-        let mut splitted = method.split('.');
-        godot_class_name = splitted.next().unwrap();
-        godot_method_name = splitted.next().unwrap();
-    } else {
-        godot_class_name = class.name().godot_ty.as_str();
-        godot_method_name = method;
+    let (godot_class, mut godot_method) =
+        if let Some((class_name, method_name)) = class_method.split_once('.') {
+            (class_name, method_name)
+        } else {
+            (class.name().godot_ty.as_str(), class_method)
+        };
+
+    if godot_method == "typeof" {
+        godot_method = "typeof_";
     }
 
-    if godot_method_name == "typeof" {
-        godot_method_name = "typeof_";
-    }
-
-    match (godot_class_name, godot_method_name) {
+    match (godot_class, godot_method) {
         ("Object", "free") => {
             return Some(("crate::obj::Gd::free".to_string(), "free"));
         }
@@ -210,15 +206,12 @@ fn convert_to_method_path<'a>(
         }
         ("String", _) => {
             return Some((
-                format!("crate::builtin::GString::{}", godot_method_name),
-                godot_method_name,
+                format!("crate::builtin::GString::{}", godot_method),
+                godot_method,
             ));
         }
         ("@GlobalScope", _) => {
-            return Some((
-                format!("crate::global::{}", godot_method_name),
-                godot_method_name,
-            ));
+            return Some((format!("crate::global::{}", godot_method), godot_method));
         }
         ("@GDScript", _) => {
             return None;
@@ -226,13 +219,13 @@ fn convert_to_method_path<'a>(
         _ => (),
     }
 
-    if let Some(class) = view.try_get_engine_class(&TyName::from_godot(godot_class_name))
+    if let Some(class) = view.try_get_engine_class(&TyName::from_godot(godot_class))
         && let Some(method) = class
             .methods
             .iter()
-            .find(|method| method.godot_name() == godot_method_name)
+            .find(|method| method.godot_name() == godot_method)
     {
-        let godot_method_name = godot_method_name.trim_start_matches("_");
+        let godot_method_name = godot_method.trim_start_matches("_");
         if method.is_private() {
             return None;
         }
@@ -253,8 +246,8 @@ fn convert_to_method_path<'a>(
         }
     }
 
-    let godot_method_name = godot_method_name.trim_start_matches("_");
-    let rust_class_path = get_class_rust_path(godot_class_name, ctx);
+    let godot_method_name = godot_method.trim_start_matches("_");
+    let rust_class_path = get_class_rust_path(godot_class, ctx);
     Some((
         format!("{}::{}", rust_class_path, godot_method_name),
         godot_method_name,
