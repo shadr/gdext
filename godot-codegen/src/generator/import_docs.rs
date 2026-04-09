@@ -9,7 +9,7 @@ pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String
     let doc = &class.description;
 
     let mut result = replace_simple_tags(doc);
-    result = replace_type_links(&result, ctx);
+    result = replace_type_links(&result, class, ctx);
     result = replace_method_links(&result, class, ctx, view);
 
     result
@@ -87,7 +87,7 @@ fn replace_simple_tags(str: &str) -> String {
     result.to_string()
 }
 
-fn replace_type_links(doc: &str, ctx: &Context) -> String {
+fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
     let mut result = String::new();
     let re = regex::RegexBuilder::new(r#"\[([a-zA-Z0-9]+?)\]"#)
         .build()
@@ -109,7 +109,13 @@ fn replace_type_links(doc: &str, ctx: &Context) -> String {
             write!(result, "{class_name}").unwrap();
         } else {
             let path = get_class_rust_path(class_name, ctx);
-            write!(result, "[{class_name}][{path}]").unwrap();
+            let current_class_name = class.name().rust_ty.to_string();
+            // if a link points to the current class then do not create a link tag in markdown to reduce noise
+            if current_class_name == class_name {
+                write!(result, "`{class_name}`").unwrap();
+            } else {
+                write!(result, "[{class_name}][{path}]").unwrap();
+            }
         }
         previous = end;
     }
