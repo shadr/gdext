@@ -9,6 +9,7 @@ use std::fmt::Write;
 
 use crate::context::Context;
 use crate::models::domain::{ApiView, Class, ClassLike, Function, TyName};
+use crate::util;
 
 pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String {
     let doc = &class.description;
@@ -169,19 +170,17 @@ fn convert_to_method_path<'a>(
     ctx: &Context,
     view: &ApiView,
 ) -> Option<String> {
-    let (godot_class, mut godot_method) =
+    let (godot_class, godot_method) =
         if let Some((class_name, method_name)) = class_method.split_once('.') {
             (class_name, method_name)
         } else {
             (class.name().godot_ty.as_str(), class_method)
         };
 
-    if godot_method == "typeof" {
-        godot_method = "typeof_";
-    }
+    let godot_method = util::safe_ident(godot_method).to_string();
 
     let mut ret = None;
-    if matches_hardcoded_method(godot_class, godot_method, &mut ret) {
+    if matches_hardcoded_method(godot_class, &godot_method, &mut ret) {
         return ret;
     }
 
