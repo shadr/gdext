@@ -17,8 +17,18 @@ pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String
     let mut result = replace_simple_tags(doc);
     result = replace_type_links(&result, class, ctx);
     result = replace_method_links(&result, class, ctx, view);
+    result = replace_unimplemented_links(&result);
 
     result
+}
+
+fn replace_unimplemented_links(str: &str) -> String {
+    let re = regex::RegexBuilder::new(
+        r#"\[(annotation|constant|member|enum|param|constructor|signal)\s.*?\]"#,
+    )
+    .build()
+    .unwrap();
+    re.replace_all(str, "\\$0").to_string()
 }
 
 fn replace_simple_tags(str: &str) -> String {
