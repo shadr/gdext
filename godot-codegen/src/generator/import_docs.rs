@@ -7,10 +7,8 @@
 
 use std::fmt::Write;
 
-use crate::{
-    context::Context,
-    models::domain::{ApiView, Class, ClassLike, Function, TyName},
-};
+use crate::context::Context;
+use crate::models::domain::{ApiView, Class, ClassLike, Function, TyName};
 
 pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String {
     let doc = &class.description;
