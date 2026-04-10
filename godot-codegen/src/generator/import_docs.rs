@@ -14,102 +14,74 @@ use crate::{special_cases, util};
 pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String {
     let doc = &class.description;
 
-    let mut result = replace_simple_tags(doc);
-    result = replace_type_links(&result, class, ctx);
+    let mut result = replace_simple_tags(doc, view);
+    result = replace_type_links(&result, class, ctx, view);
     result = replace_method_links(&result, class, ctx, view);
-    result = replace_unimplemented_links(&result);
+    result = replace_unimplemented_links(&result, view);
 
     result
 }
 
-fn replace_unimplemented_links(str: &str) -> String {
-    let re = regex::RegexBuilder::new(
-        r#"\[(annotation|constant|member|enum|param|constructor|signal)\s.*?\]"#,
-    )
-    .build()
-    .unwrap();
-    re.replace_all(str, "\\$0").to_string()
+fn replace_unimplemented_links(str: &str, view: &ApiView) -> String {
+    view.regexes()
+        .unimplemented_links
+        .replace_all(str, "\\$0")
+        .to_string()
 }
 
-fn replace_simple_tags(str: &str) -> String {
+fn replace_simple_tags(str: &str, view: &ApiView) -> String {
     // Replace \n with \n\n everywhere except codeblock tags.
-    let re = regex::RegexBuilder::new(
-        r#"(\[codeblocks?( lang=.*?)?\](?:.|\n)*?\[\/codeblocks?\])|(\n)"#,
-    )
-    .build()
-    .unwrap();
-    let result = re.replace_all(str, "$1$3$3");
+    let result = view.regexes().newlines.replace_all(str, "$1$3$3");
 
     // Replace bold tags.
-    let re = regex::RegexBuilder::new(r#"\[b\](.*?)\[\/b\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "**$1**");
+    let result = view.regexes().bold_tags.replace_all(&result, "**$1**");
 
     // Replace italic tags.
-    let re = regex::RegexBuilder::new(r#"\[i\](.*?)\[\/i\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "*$1*");
+    let result = view.regexes().italic_tags.replace_all(&result, "*$1*");
 
     // Replace code tags.
-    let re = regex::RegexBuilder::new(r#"\[code( skip-lint)?\](.*?)\[\/code\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "`$2`");
+    let result = view.regexes().code_tags.replace_all(&result, "`$2`");
 
     // Replace kbd tags.
-    let re = regex::RegexBuilder::new(r#"\[kbd\](.*?)\[\/kbd\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "`$1`");
+    let result = view.regexes().kbd_tags.replace_all(&result, "`$1`");
 
     // Replace url tags.
-    let re = regex::RegexBuilder::new(r#"\[url=(.*?)\](.*?)\[\/url\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "[$2]($1)");
+    let result = view.regexes().url_tags.replace_all(&result, "[$2]($1)");
 
     // Replace codeblocks tags.
-    let re = regex::RegexBuilder::new(r#"\[codeblocks\]([\s\S]*?)\[\/codeblocks\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "$1");
+    let result = view.regexes().codeblocks_tags.replace_all(&result, "$1");
 
     // Replace codeblock tags.
-    let re = regex::RegexBuilder::new(r#"\[codeblock\]([\s\S]*?)\[\/codeblock\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "```gdscript$1```");
+    let result = view
+        .regexes()
+        .codeblock_tags
+        .replace_all(&result, "```gdscript$1```");
 
     // Replace codeblock lang tags.
-    let re = regex::RegexBuilder::new(r#"\[codeblock lang=(.*?)\]([\s\S]*?)\[\/codeblock\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "```$1$2```");
+    let result = view
+        .regexes()
+        .codeblock_lang_tags
+        .replace_all(&result, "```$1$2```");
 
     // Replace gdscript tags.
-    let re = regex::RegexBuilder::new(r#"\[gdscript\]([\s\S]*?)\[\/gdscript\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "```gdscript$1```");
+    let result = view
+        .regexes()
+        .gdscript_tags
+        .replace_all(&result, "```gdscript$1```");
 
     // Replace csharp tags.
-    let re = regex::RegexBuilder::new(r#"\[csharp\]([\s\S]*?)\[\/csharp\]"#)
-        .build()
-        .unwrap();
-    let result = re.replace_all(&result, "```csharp$1```");
+    let result = view
+        .regexes()
+        .csharp_tags
+        .replace_all(&result, "```csharp$1```");
 
     result.to_string()
 }
 
-fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
+fn replace_type_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
     let mut result = String::new();
-    let re = regex::RegexBuilder::new(r#"\[([a-zA-Z0-9@]+?)\]"#)
-        .build()
-        .unwrap();
     let mut previous = 0;
-    for captures in re.captures_iter(doc) {
+    for captures in view.regexes().type_links.captures_iter(doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
         let end = whole_match.end();
@@ -154,12 +126,9 @@ fn matches_ignored_links(class: &str) -> bool {
 
 fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
     let mut result = String::new();
-    let re = regex::RegexBuilder::new(r#"\[method ((([a-zA-Z0-9@]+?)\.)?([a-zA-Z0-9_]+?))\]"#)
-        .build()
-        .unwrap();
     let mut previous = 0;
 
-    for captures in re.captures_iter(doc) {
+    for captures in view.regexes().method_links.captures_iter(doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
         let end = whole_match.end();

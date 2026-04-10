@@ -15,6 +15,7 @@ use std::fmt;
 
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::{ToTokens, format_ident, quote};
+use regex::{Regex, RegexBuilder};
 
 use crate::context::Context;
 use crate::conv;
@@ -53,13 +54,18 @@ impl ExtensionApi {
 
 pub struct ApiView<'a> {
     class_by_ty: HashMap<TyName, &'a Class>,
+    import_regexes: ImportRegexes,
 }
 
 impl<'a> ApiView<'a> {
     pub fn new(api: &'a ExtensionApi) -> ApiView<'a> {
         let class_by_ty = api.classes.iter().map(|c| (c.name().clone(), c)).collect();
+        let import_regexes = ImportRegexes::new();
 
-        Self { class_by_ty }
+        Self {
+            class_by_ty,
+            import_regexes,
+        }
     }
 
     pub fn get_engine_class(&self, ty: &TyName) -> &'a Class {
@@ -70,6 +76,10 @@ impl<'a> ApiView<'a> {
 
     pub fn try_get_engine_class(&self, ty: &TyName) -> Option<&'a Class> {
         self.class_by_ty.get(ty).cloned()
+    }
+
+    pub fn regexes(&self) -> &ImportRegexes {
+        &self.import_regexes
     }
 }
 
@@ -1065,6 +1075,90 @@ impl ClassCodegenLevel {
             Self::Servers => quote! { crate::init::InitLevel::Servers },
             Self::Scene => quote! { crate::init::InitLevel::Scene },
             Self::Editor => quote! { crate::init::InitLevel::Editor },
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------
+
+/// A collection of compiled regexes that are used when importing docs.
+pub struct ImportRegexes {
+    pub newlines: Regex,
+    pub bold_tags: Regex,
+    pub italic_tags: Regex,
+    pub code_tags: Regex,
+    pub kbd_tags: Regex,
+    pub url_tags: Regex,
+    pub codeblocks_tags: Regex,
+    pub codeblock_tags: Regex,
+    pub codeblock_lang_tags: Regex,
+    pub gdscript_tags: Regex,
+    pub csharp_tags: Regex,
+    pub type_links: Regex,
+    pub method_links: Regex,
+    pub unimplemented_links: Regex,
+}
+
+impl ImportRegexes {
+    pub fn new() -> Self {
+        let newlines =
+            RegexBuilder::new(r#"(\[codeblocks?( lang=.*?)?\](?:.|\n)*?\[\/codeblocks?\])|(\n)"#)
+                .build()
+                .unwrap();
+        let bold_tags = RegexBuilder::new(r#"\[b\](.*?)\[\/b\]"#).build().unwrap();
+        let italic_tags = RegexBuilder::new(r#"\[i\](.*?)\[\/i\]"#).build().unwrap();
+        let code_tags = RegexBuilder::new(r#"\[code( skip-lint)?\](.*?)\[\/code\]"#)
+            .build()
+            .unwrap();
+        let kbd_tags = RegexBuilder::new(r#"\[kbd\](.*?)\[\/kbd\]"#)
+            .build()
+            .unwrap();
+        let url_tags = RegexBuilder::new(r#"\[url=(.*?)\](.*?)\[\/url\]"#)
+            .build()
+            .unwrap();
+        let codeblocks_tags = RegexBuilder::new(r#"\[codeblocks\]([\s\S]*?)\[\/codeblocks\]"#)
+            .build()
+            .unwrap();
+        let codeblock_tags = RegexBuilder::new(r#"\[codeblock\]([\s\S]*?)\[\/codeblock\]"#)
+            .build()
+            .unwrap();
+        let codeblock_lang_tags =
+            RegexBuilder::new(r#"\[codeblock lang=(.*?)\]([\s\S]*?)\[\/codeblock\]"#)
+                .build()
+                .unwrap();
+        let gdscript_tags = RegexBuilder::new(r#"\[gdscript\]([\s\S]*?)\[\/gdscript\]"#)
+            .build()
+            .unwrap();
+        let csharp_tags = RegexBuilder::new(r#"\[csharp\]([\s\S]*?)\[\/csharp\]"#)
+            .build()
+            .unwrap();
+        let type_links = RegexBuilder::new(r#"\[([a-zA-Z0-9@]+?)\]"#)
+            .build()
+            .unwrap();
+        let method_links =
+            RegexBuilder::new(r#"\[method ((([a-zA-Z0-9@]+?)\.)?([a-zA-Z0-9_]+?))\]"#)
+                .build()
+                .unwrap();
+        let unimplemented_links = RegexBuilder::new(
+            r#"\[(annotation|constant|member|enum|param|constructor|signal)\s.*?\]"#,
+        )
+        .build()
+        .unwrap();
+        Self {
+            newlines,
+            bold_tags,
+            italic_tags,
+            code_tags,
+            kbd_tags,
+            url_tags,
+            codeblocks_tags,
+            codeblock_tags,
+            codeblock_lang_tags,
+            gdscript_tags,
+            csharp_tags,
+            type_links,
+            method_links,
+            unimplemented_links,
         }
     }
 }
