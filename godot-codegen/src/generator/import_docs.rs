@@ -185,8 +185,8 @@ fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView)
     result
 }
 
-fn convert_to_method_path<'a>(
-    class_method: &'a str,
+fn convert_to_method_path(
+    class_method: &str,
     class: &Class,
     ctx: &Context,
     view: &ApiView,
