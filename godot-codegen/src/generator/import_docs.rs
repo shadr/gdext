@@ -292,9 +292,18 @@ fn matches_hardcoded_method(
     }
 }
 
+fn convert_builtin_types(type_name: &str) -> Option<String> {
+    match type_name {
+        "String" => Some("crate::builtin::GString".to_string()),
+        "Array" => Some("crate::builtin::Array".to_string()),
+        "Dictionary" => Some("crate::builtin::Dictionary".to_string()),
+        _ => None,
+    }
+}
+
 fn get_class_rust_path(godot_class_name: &str, ctx: &Context) -> String {
-    if godot_class_name == "String" {
-        return "crate::builtin::GString".to_string();
+    if let Some(hardcoded_builtin_type) = convert_builtin_types(godot_class_name) {
+        return hardcoded_builtin_type;
     }
 
     let is_builtin = ctx.is_builtin(godot_class_name);
