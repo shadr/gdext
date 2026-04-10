@@ -105,7 +105,7 @@ fn replace_simple_tags(str: &str) -> String {
 
 fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
     let mut result = String::new();
-    let re = regex::RegexBuilder::new(r#"\[([a-zA-Z0-9]+?)\]"#)
+    let re = regex::RegexBuilder::new(r#"\[([a-zA-Z0-9@]+?)\]"#)
         .build()
         .unwrap();
     let mut previous = 0;
@@ -120,8 +120,11 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
         let class_name = class_name.as_str();
         result.push_str(&doc[previous..start]);
 
-        // If we encounter a deleted or primitive type, we insert it without any links or formatting.
-        if special_cases::is_godot_type_deleted(class_name) || matches_primitive_type(class_name) {
+        // If we encounter a deleted or primitive type, or an ignored link, we insert it without any links or formatting.
+        if special_cases::is_godot_type_deleted(class_name)
+            || matches_primitive_type(class_name)
+            || matches_ignored_links(class_name)
+        {
             write!(result, "{class_name}").unwrap();
         } else {
             let path = get_class_rust_path(class_name, ctx);
@@ -142,6 +145,11 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
 
 fn matches_primitive_type(class: &str) -> bool {
     matches!(class, "int" | "float" | "bool")
+}
+
+fn matches_ignored_links(class: &str) -> bool {
+    // We don't have a single place to point @GDScript to.
+    class == "@GDScript"
 }
 
 fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
