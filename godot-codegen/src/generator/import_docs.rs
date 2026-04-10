@@ -276,10 +276,10 @@ fn matches_hardcoded_method(
             *ret = Some("crate::tools::save".to_string());
             true
         }
-        ("String", _) => {
-            *ret = Some(format!("crate::builtin::GString::{}", godot_method));
-            true
-        }
+        // ("String", _) => {
+        //     *ret = Some(format!("crate::builtin::GString::{}", godot_method));
+        //     true
+        // }
         ("@GlobalScope", _) => {
             *ret = Some(format!("crate::global::{}", godot_method));
             true
