@@ -183,7 +183,7 @@ pub struct Class {
     pub enums: Vec<Enum>,
     pub methods: Vec<ClassMethod>,
     pub signals: Vec<ClassSignal>,
-    pub description: String,
+    pub description: Option<String>,
 }
 
 impl ClassLike for Class {

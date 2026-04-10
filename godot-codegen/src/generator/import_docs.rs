@@ -11,10 +11,13 @@ use crate::context::Context;
 use crate::models::domain::{ApiView, Class, ClassLike, Function, TyName};
 use crate::{special_cases, util};
 
-pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String {
-    let doc = &class.description;
-
-    let mut result = replace_simple_tags(doc, view);
+pub fn import_class_docs(
+    description: &str,
+    class: &Class,
+    ctx: &Context,
+    view: &ApiView,
+) -> String {
+    let mut result = replace_simple_tags(description, view);
     result = replace_type_links(&result, class, ctx, view);
     result = replace_method_links(&result, class, ctx, view);
     result = replace_unimplemented_links(&result, view);
