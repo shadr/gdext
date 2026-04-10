@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use crate::context::Context;
 use crate::models::domain::{ApiView, Class, ClassLike, Function, TyName};
-use crate::util;
+use crate::{special_cases, util};
 
 pub fn import_class_docs(class: &Class, ctx: &Context, view: &ApiView) -> String {
     let doc = &class.description;
@@ -109,7 +109,6 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
         .build()
         .unwrap();
     let mut previous = 0;
-    const IGNORED_NAMES: &[&str] = &["Thread", "Mutex", "int"];
     for captures in re.captures_iter(doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
@@ -121,8 +120,8 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
         let class_name = class_name.as_str();
         result.push_str(&doc[previous..start]);
 
-        // If we encounter an ignored name, then we insert it without any links or formatting.
-        if IGNORED_NAMES.contains(&class_name) {
+        // If we encounter a deleted or primitive type, we insert it without any links or formatting.
+        if special_cases::is_godot_type_deleted(class_name) || matches_primitive_type(class_name) {
             write!(result, "{class_name}").unwrap();
         } else {
             let path = get_class_rust_path(class_name, ctx);
@@ -139,6 +138,10 @@ fn replace_type_links(doc: &str, class: &Class, ctx: &Context) -> String {
     }
     result.push_str(&doc[previous..]);
     result
+}
+
+fn matches_primitive_type(class: &str) -> bool {
+    matches!(class, "int" | "float" | "bool")
 }
 
 fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
