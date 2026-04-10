@@ -26,6 +26,7 @@ mod tests;
 
 use std::path::{Path, PathBuf};
 
+use generator::import_docs::ImportRegexes;
 use proc_macro2::TokenStream;
 
 use crate::context::Context;
@@ -163,6 +164,8 @@ pub fn generate_core_files(core_gen_path: &Path) {
     let view = ApiView::new(&api);
     watch.record("map_domain_models");
 
+    let import_regexes = ImportRegexes::new();
+
     // TODO if ctx is no longer needed for below functions:
     // Deallocate all the JSON models; no longer needed for codegen.
     // drop(json_api);
@@ -173,6 +176,7 @@ pub fn generate_core_files(core_gen_path: &Path) {
         &api,
         &mut ctx,
         &view,
+        &import_regexes,
         &core_gen_path.join("classes"),
         &mut submit_fn,
     );

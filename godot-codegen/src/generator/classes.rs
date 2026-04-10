@@ -10,6 +10,7 @@ use std::path::Path;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
+use super::import_docs::ImportRegexes;
 use crate::context::{Context, NotificationEnum};
 use crate::generator::functions_common::{FnCode, FnDefinition, FnDefinitions};
 use crate::generator::method_tables::MethodTableKey;
@@ -27,6 +28,7 @@ pub fn generate_class_files(
     api: &ExtensionApi,
     ctx: &mut Context,
     view: &ApiView,
+    import_regexes: &ImportRegexes,
     gen_path: &Path,
     submit_fn: &mut SubmitFn,
 ) {
@@ -35,7 +37,7 @@ pub fn generate_class_files(
 
     let mut modules = vec![];
     for class in api.classes.iter() {
-        let generated_class = make_class(class, ctx, view);
+        let generated_class = make_class(class, ctx, view, import_regexes);
         let file_contents = generated_class.code;
 
         let out_path = gen_path.join(format!("{}.rs", class.mod_name().rust_mod));
@@ -86,7 +88,12 @@ struct Construction {
     singleton_impl: TokenStream,
 }
 
-fn make_class(class: &Class, ctx: &mut Context, view: &ApiView) -> GeneratedClass {
+fn make_class(
+    class: &Class,
+    ctx: &mut Context,
+    view: &ApiView,
+    import_regexes: &ImportRegexes,
+) -> GeneratedClass {
     let class_name = class.name();
 
     // Strings
@@ -114,7 +121,8 @@ fn make_class(class: &Class, ctx: &mut Context, view: &ApiView) -> GeneratedClas
         && !description.is_empty()
     {
         extended_class_doc.push_str("\n# Godot imported docs\n");
-        let imported_doc = super::import_docs::import_class_docs(description, class, ctx, view);
+        let imported_doc =
+            super::import_docs::import_class_docs(description, class, ctx, view, import_regexes);
         extended_class_doc.push_str(&imported_doc);
     }
 

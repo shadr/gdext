@@ -7,84 +7,165 @@
 
 use std::fmt::Write;
 
+use regex::{Regex, RegexBuilder};
+
 use crate::context::Context;
 use crate::models::domain::{ApiView, Class, ClassLike, Function, TyName};
 use crate::{special_cases, util};
+
+// ----------------------------------------------------------------------------------------------------------------------------------------------
+
+/// A collection of compiled regexes that are used when importing docs.
+pub struct ImportRegexes {
+    pub newlines: Regex,
+    pub bold_tags: Regex,
+    pub italic_tags: Regex,
+    pub code_tags: Regex,
+    pub kbd_tags: Regex,
+    pub url_tags: Regex,
+    pub codeblocks_tags: Regex,
+    pub codeblock_tags: Regex,
+    pub codeblock_lang_tags: Regex,
+    pub gdscript_tags: Regex,
+    pub csharp_tags: Regex,
+    pub type_links: Regex,
+    pub method_links: Regex,
+    pub unimplemented_links: Regex,
+}
+
+impl ImportRegexes {
+    pub fn new() -> Self {
+        let newlines =
+            RegexBuilder::new(r#"(\[codeblocks?( lang=.*?)?\](?:.|\n)*?\[\/codeblocks?\])|(\n)"#)
+                .build()
+                .unwrap();
+        let bold_tags = RegexBuilder::new(r#"\[b\](.*?)\[\/b\]"#).build().unwrap();
+        let italic_tags = RegexBuilder::new(r#"\[i\](.*?)\[\/i\]"#).build().unwrap();
+        let code_tags = RegexBuilder::new(r#"\[code( skip-lint)?\](.*?)\[\/code\]"#)
+            .build()
+            .unwrap();
+        let kbd_tags = RegexBuilder::new(r#"\[kbd\](.*?)\[\/kbd\]"#)
+            .build()
+            .unwrap();
+        let url_tags = RegexBuilder::new(r#"\[url=(.*?)\](.*?)\[\/url\]"#)
+            .build()
+            .unwrap();
+        let codeblocks_tags = RegexBuilder::new(r#"\[codeblocks\]([\s\S]*?)\[\/codeblocks\]"#)
+            .build()
+            .unwrap();
+        let codeblock_tags = RegexBuilder::new(r#"\[codeblock\]([\s\S]*?)\[\/codeblock\]"#)
+            .build()
+            .unwrap();
+        let codeblock_lang_tags =
+            RegexBuilder::new(r#"\[codeblock lang=(.*?)\]([\s\S]*?)\[\/codeblock\]"#)
+                .build()
+                .unwrap();
+        let gdscript_tags = RegexBuilder::new(r#"\[gdscript\]([\s\S]*?)\[\/gdscript\]"#)
+            .build()
+            .unwrap();
+        let csharp_tags = RegexBuilder::new(r#"\[csharp\]([\s\S]*?)\[\/csharp\]"#)
+            .build()
+            .unwrap();
+        let type_links = RegexBuilder::new(r#"\[([a-zA-Z0-9@]+?)\]"#)
+            .build()
+            .unwrap();
+        let method_links =
+            RegexBuilder::new(r#"\[method ((([a-zA-Z0-9@]+?)\.)?([a-zA-Z0-9_]+?))\]"#)
+                .build()
+                .unwrap();
+        let unimplemented_links = RegexBuilder::new(
+            r#"\[(annotation|constant|member|enum|param|constructor|signal)\s.*?\]"#,
+        )
+        .build()
+        .unwrap();
+        Self {
+            newlines,
+            bold_tags,
+            italic_tags,
+            code_tags,
+            kbd_tags,
+            url_tags,
+            codeblocks_tags,
+            codeblock_tags,
+            codeblock_lang_tags,
+            gdscript_tags,
+            csharp_tags,
+            type_links,
+            method_links,
+            unimplemented_links,
+        }
+    }
+}
 
 pub fn import_class_docs(
     description: &str,
     class: &Class,
     ctx: &Context,
     view: &ApiView,
+    regexes: &ImportRegexes,
 ) -> String {
-    let mut result = replace_simple_tags(description, view);
-    result = replace_type_links(&result, class, ctx, view);
-    result = replace_method_links(&result, class, ctx, view);
-    result = replace_unimplemented_links(&result, view);
+    let mut result = replace_simple_tags(description, regexes);
+    result = replace_type_links(&result, class, ctx, regexes);
+    result = replace_method_links(&result, class, ctx, view, regexes);
+    result = replace_unimplemented_links(&result, regexes);
 
     result
 }
 
-fn replace_unimplemented_links(str: &str, view: &ApiView) -> String {
-    view.regexes()
+fn replace_unimplemented_links(str: &str, regexes: &ImportRegexes) -> String {
+    regexes
         .unimplemented_links
         .replace_all(str, "\\$0")
         .to_string()
 }
 
-fn replace_simple_tags(str: &str, view: &ApiView) -> String {
+fn replace_simple_tags(str: &str, regexes: &ImportRegexes) -> String {
     // Replace \n with \n\n everywhere except codeblock tags.
-    let result = view.regexes().newlines.replace_all(str, "$1$3$3");
+    let result = regexes.newlines.replace_all(str, "$1$3$3");
 
     // Replace bold tags.
-    let result = view.regexes().bold_tags.replace_all(&result, "**$1**");
+    let result = regexes.bold_tags.replace_all(&result, "**$1**");
 
     // Replace italic tags.
-    let result = view.regexes().italic_tags.replace_all(&result, "*$1*");
+    let result = regexes.italic_tags.replace_all(&result, "*$1*");
 
     // Replace code tags.
-    let result = view.regexes().code_tags.replace_all(&result, "`$2`");
+    let result = regexes.code_tags.replace_all(&result, "`$2`");
 
     // Replace kbd tags.
-    let result = view.regexes().kbd_tags.replace_all(&result, "`$1`");
+    let result = regexes.kbd_tags.replace_all(&result, "`$1`");
 
     // Replace url tags.
-    let result = view.regexes().url_tags.replace_all(&result, "[$2]($1)");
+    let result = regexes.url_tags.replace_all(&result, "[$2]($1)");
 
     // Replace codeblocks tags.
-    let result = view.regexes().codeblocks_tags.replace_all(&result, "$1");
+    let result = regexes.codeblocks_tags.replace_all(&result, "$1");
 
     // Replace codeblock tags.
-    let result = view
-        .regexes()
+    let result = regexes
         .codeblock_tags
         .replace_all(&result, "```gdscript$1```");
 
     // Replace codeblock lang tags.
-    let result = view
-        .regexes()
+    let result = regexes
         .codeblock_lang_tags
         .replace_all(&result, "```$1$2```");
 
     // Replace gdscript tags.
-    let result = view
-        .regexes()
+    let result = regexes
         .gdscript_tags
         .replace_all(&result, "```gdscript$1```");
 
     // Replace csharp tags.
-    let result = view
-        .regexes()
-        .csharp_tags
-        .replace_all(&result, "```csharp$1```");
+    let result = regexes.csharp_tags.replace_all(&result, "```csharp$1```");
 
     result.to_string()
 }
 
-fn replace_type_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
+fn replace_type_links(doc: &str, class: &Class, ctx: &Context, regexes: &ImportRegexes) -> String {
     let mut result = String::new();
     let mut previous = 0;
-    for captures in view.regexes().type_links.captures_iter(doc) {
+    for captures in regexes.type_links.captures_iter(doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
         let end = whole_match.end();
@@ -127,11 +208,17 @@ fn matches_ignored_links(class: &str) -> bool {
     class == "@GDScript"
 }
 
-fn replace_method_links(doc: &str, class: &Class, ctx: &Context, view: &ApiView) -> String {
+fn replace_method_links(
+    doc: &str,
+    class: &Class,
+    ctx: &Context,
+    view: &ApiView,
+    regexes: &ImportRegexes,
+) -> String {
     let mut result = String::new();
     let mut previous = 0;
 
-    for captures in view.regexes().method_links.captures_iter(doc) {
+    for captures in regexes.method_links.captures_iter(doc) {
         let whole_match = captures.get(0).unwrap();
         let start = whole_match.start();
         let end = whole_match.end();
